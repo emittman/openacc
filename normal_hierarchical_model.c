@@ -1,85 +1,88 @@
-/*
- *  Copyright 2012 NVIDIA Corporation
+/* 
+ * Copyright 2015 Jarad Niemi
+ * 
+ * Licensed under GNU GPLv2
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * MCMC inference for hierarchical normal model
+ *   y_i \sim N(\theta_i,1) 
+ *   \theta_i \sim N(mu,\tau^2)
+ *   p(\mu) \propto 1
+ *   \tau ~ Unif(0,10)
  */
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 #include "timer.h"
 
-#define NN 4096
-#define NM 4096
+#define N 1000
+#define MEAN 0.0
+#define SD 1.0
+#define SIGMA2 1.0
+#define NREPS 100000
 
-double A[NN][NM];
-double Anew[NN][NM];
+double y[N], theta[N], mu, tau, tau2;
+
+// http://stackoverflow.com/questions/5287009/gaussian-random-number-generator
+double rnorm(double mean, double sd) 
+{
+  double v1,v2,s;
+
+  do {
+    v1 = 2.0 * ((double) rand()/RAND_MAX) - 1;
+    v2 = 2.0 * ((double) rand()/RAND_MAX) - 1;
+
+    s = v1*v1 + v2*v2;
+  } while ( s >= 1.0 );
+
+  if (s == 0.0)
+    return 0.0;
+  else
+    return mean + sd*(1*sqrt(-2.0 * log(s) / s));
+}
+
 
 int main(int argc, char** argv)
 {
-    const int n = NN;
-    const int m = NM;
-    const int iter_max = 1000;
-    
-    const double tol = 1.0e-6;
-    double error     = 1.0;
-    
-    memset(A, 0, n * m * sizeof(double));
-    memset(Anew, 0, n * m * sizeof(double));
-        
-    for (int j = 0; j < n; j++)
-    {
-        A[j][0]    = 1.0;
-        Anew[j][0] = 1.0;
+  int i,j;
+  const unsigned int n=N;
+  const unsigned int nreps=NREPS;
+
+  double mean=MEAN, sd=SD, sigma2=SIGMA2, m, V, ybar;
+
+  memset(y,     0, n*sizeof(double));
+  memset(theta, 0, n*sizeof(double));
+  for (i=0; i<n; i++) 
+  {
+    y[i] = rnorm(mean,sqrt(1+sd));
+  }
+
+  StartTimer();
+
+  // initial values
+  mu = 0;
+  tau = 1; tau2 = tau*tau;
+
+  for (i=0; i<nreps; i++) {
+    // sample theta
+    for (j=0; i<n; j++) {
+      V = 1.0/(1.0+1.0/tau2);
+      m = V*y[j]/1.0;    
+      theta[j] = rnorm(m, sqrt(V));
     }
     
-    printf("Jacobi relaxation Calculation: %d x %d mesh\n", n, m);
-    
-    StartTimer();
-    int iter = 0;
-    
-#pragma acc data copy(A), create(Anew)
-    while ( error > tol && iter < iter_max )
-    {
-        error = 0.0;
-
-#pragma omp parallel for shared(m, n, Anew, A)
-#pragma acc kernels
-        for( int j = 1; j < n-1; j++)
-        {
-            for( int i = 1; i < m-1; i++ )
-            {
-                Anew[j][i] = 0.25 * ( A[j][i+1] + A[j][i-1]
-                                    + A[j-1][i] + A[j+1][i]);
-                error = fmax( error, fabs(Anew[j][i] - A[j][i]));
-            }
-        }
-        
-#pragma omp parallel for shared(m, n, Anew, A)
-#pragma acc kernels
-        for( int j = 1; j < n-1; j++)
-        {
-            for( int i = 1; i < m-1; i++ )
-            {
-                A[j][i] = Anew[j][i];    
-            }
-        }
-
-        if(iter % 100 == 0) printf("%5d, %0.6f\n", iter, error);
-        
-        iter++;
+    ybar = 0;
+    for (j=0; j<n; j++) {
+      ybar += theta[j];
     }
+    ybar /= n;
 
-    double runtime = GetTimer();
+    // sample mu and tau
+    mu = rnorm(ybar, sqrt(sigma2/n));
+  }
+
+  double runtime = GetTimer();
  
-    printf(" total: %f s\n", runtime / 1000);
+  printf(" total: %f s\n", runtime / 1000);
 }
+
