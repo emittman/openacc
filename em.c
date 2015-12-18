@@ -20,6 +20,7 @@
 #define NREPS 100
 
 // http://stackoverflow.com/questions/5287009/gaussian-random-number-generator
+// I don't even use this.
 double rnorm(double mean, double sd) 
 {
   double v1,v2,s;
