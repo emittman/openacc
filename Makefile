@@ -1,3 +1,14 @@
-a.out: normal_hierarchical_model.c
-	gcc normal_hierarchical_model.c -lm
+CC=pgcc
+
+CFLAGS=-lm -m64
+
+SOURCES=mcmc.c em.c
+
+OBJECTS=$(SOURCES:.c=.o)
+
+all: $(OBJECTS)
+
+.c.o:
+	$(CC) $(CFLAGS) $< -o $@
+
 
