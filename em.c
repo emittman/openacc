@@ -5,7 +5,7 @@
  *
  * EM for hierarchical normal model
  *   y_i \sim N(\theta_i,\sigma^2) 
- *   \theta_i \sim N(mu,\tau^2)
+ *   \theta_i \sim N(\mu,\tau^2)
  */
 
 #include <math.h>
@@ -15,11 +15,9 @@
 
 #define N 1000
 #define SIGMA2 1.0
-#define MU 0.0
+#define MU 0.5
 #define TAU2 1.0
-#define NREPS 100000
-
-double y[N], theta[N], mu, tau, tau2;
+#define NREPS 100
 
 // http://stackoverflow.com/questions/5287009/gaussian-random-number-generator
 double rnorm(double mean, double sd) 
@@ -49,45 +47,43 @@ int main(int argc, char** argv)
   const unsigned int n=N;
   const unsigned int nreps=NREPS;
 
-  double mu=MU, tau2=TAU2, sigma2=SIGMA2;
+  double v, mu=MU, tau2=TAU2, sigma2=SIGMA2, y[n], theta[n];
 
   memset(y,     0, n*sizeof(double));
   memset(theta, 0, n*sizeof(double));
   
   // Fill with data
-  for (i=0; i<n; i++) 
-  {
-    y[i] = rnorm(mu,sqrt(1+tau2));
-  }
+  for (i=0; i<n; i++) y[i] = rnorm(mu,sqrt(sigma2+tau2));
 
   StartTimer();
 
   // initial values
-  mu = 0;
-  tau = 1; tau2 = tau*tau;
+  mu = 0.3;
+  tau2 = 1.3; 
 
+#pragma acc data copy(mu,tau2) create(v,theta)
+#pragma acc kernels
   for (i=0; i<nreps; i++) {
+    v = 1.0/(1.0/tau2+1.0/sigma2);
+    
     // E-step
-    for (j=0; j<n; j++) {
-      theta[j] = (mu/tau2+y[j]/sigma2)/(1.0/tau2+1.0/sigma2);
-    }
+    for (j=0; j<n; j++) theta[j] = v*(mu/tau2+y[j]/sigma2);
 
     // M-step
-    mu = 0;
-    for (j=0;j<n; j++) {
-      mu += theta[j];
-    }
+    mu = 0.0;
+    for (j=0;j<n; j++) mu += theta[j];
     mu /= n;
     
-    tau2 = 0
-    for (j=0;j<n; j++) {
-      tau2 += (theta[j]-mu)*(theta[j]-mu);
-    }
+    tau2 = 0.0;
+    for (j=0;j<n; j++) tau2 += (theta[j]-mu)*(theta[j]-mu);
     tau2 /= n;
+    tau2 += v;
   }
 
   double runtime = GetTimer();
  
+  printf(" mu= %f\n", mu);
+  printf(" tau2= %f\n", tau2);
   printf(" total: %f s\n", runtime / 1000);
 }
 

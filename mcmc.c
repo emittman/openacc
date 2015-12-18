@@ -42,6 +42,8 @@ double rnorm(double mean, double sd)
 }
 
 
+
+
 int main(int argc, char** argv)
 {
   int i,j;
