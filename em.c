@@ -54,7 +54,7 @@ int main(int argc, char** argv)
   memset(theta, 0, n*sizeof(double));
   
   // Fill with data
-  for (i=0; i<n; i++) y[i] = rnorm(mu,sqrt(sigma2+tau2));
+  for (i=0; i<n; i++) y[i] = rnorm(mu,sqrt(sigma2+tau2)); // Aren't you calling the function here?
 
   StartTimer();
 
